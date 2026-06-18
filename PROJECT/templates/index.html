@@ -345,32 +345,22 @@
         };
 
         function switchView(view) {
-            activeView = view;
-            const chatTab = document.getElementById("chatTabBtn");
-            const learningTab = document.getElementById("learningHubTabBtn");
+            activeView = "chat";
             const inputPanel = document.querySelector(".input-panel");
-            const container = document.getElementById("msgContainer");
             
             // Clear any active failed banners
             const existingB = document.getElementById("interceptorBanner");
             if (existingB) existingB.remove();
 
-            if (view === "chat") {
-                chatTab.classList.add("active");
-                learningTab.classList.remove("active");
+            if (inputPanel) {
                 inputPanel.style.display = "flex";
-                // Restore current chat
-                loadChatWindow(currentChatName);
-            } else {
-                learningTab.classList.add("active");
-                chatTab.classList.remove("active");
-                inputPanel.style.display = "none";
-                document.getElementById("currentChatTitle").innerText = `🧠 Adaptive Learning Lab - Memory Engine`;
-                fetchAndRenderLearningHub();
             }
+            // Restore current chat
+            loadChatWindow(currentChatName);
 
             if (window.innerWidth <= 768) {
-                document.getElementById("sidebarPanel").classList.remove("active");
+                const sidebar = document.getElementById("sidebarPanel");
+                if (sidebar) sidebar.classList.remove("active");
             }
         }
 
@@ -585,50 +575,7 @@
         }
 
         function showQueryFailedInterceptorBox(query) {
-            let banner = document.getElementById("interceptorBanner");
-            if (!banner) {
-                banner = document.createElement("div");
-                banner.id = "interceptorBanner";
-                banner.style.cssText = "position: fixed; bottom: 80px; right: 20px; background: #fbbf24; border: 1px solid #d97706; border-radius: 8px; padding: 12px 16px; color: #0d1224; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 8px; max-width: 320px; animation: slideIn 0.3s ease-out;";
-                
-                if (!document.getElementById("slide-in-style")) {
-                    const style = document.createElement("style");
-                    style.id = "slide-in-style";
-                    style.innerHTML = `
-                        @keyframes slideIn {
-                            from { transform: translateY(20px); opacity: 0; }
-                            to { transform: translateY(0); opacity: 1; }
-                        }
-                    `;
-                    document.head.appendChild(style);
-                }
-                document.body.appendChild(banner);
-            }
-            
-            banner.innerHTML = `
-                <div style="display: flex; align-items: start; gap: 8px;">
-                    <span style="font-size: 16px;">🧠</span>
-                    <div>
-                        <strong style="font-size: 11px; display: block;">Query Intercept Box alert!</strong>
-                        <span style="font-size: 10px; opacity: 0.9; display: block; margin-top: 2px; line-height: 1.3;">
-                            "${query}" fell back on core limits. This anomaly was logged to the teaching base!
-                        </span>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
-                    <button onclick="document.getElementById('interceptorBanner').remove();" style="background: transparent; border: none; color: #451a03; font-size: 10px; font-weight: bold; cursor: pointer; padding: 4px 8px;">
-                        Dismiss
-                    </button>
-                    <button onclick="document.getElementById('interceptorBanner').remove(); switchView('learning');" style="background: #0f172a; border: none; color: #fff; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer; padding: 4px 8px;">
-                        Teach Chatbot
-                    </button>
-                </div>
-            `;
-            
-            setTimeout(() => {
-                const b = document.getElementById("interceptorBanner");
-                if (b) b.remove();
-            }, 8000);
+            // No-op: Do not show query failure intercept banner on UI as per requested scope
         }
 
         // ------------------ ADAPTIVE LEARNING HUB SCRIPTING ------------------
