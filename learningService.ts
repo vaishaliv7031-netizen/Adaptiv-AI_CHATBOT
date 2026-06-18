@@ -24,6 +24,70 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const FAILED_QUERIES_FILE = path.join(DATA_DIR, "failed_queries.json");
 const LEARNED_PATTERNS_FILE = path.join(DATA_DIR, "learned_patterns.json");
 
+// Helper to perform robust, retryable, and model-fallback content generation to gracefully handle 503 Spike Capacity/High Demand errors
+async function generateContentWithFallback(
+  ai: GoogleGenAI,
+  params: {
+    contents: any;
+    config?: any;
+  }
+): Promise<any> {
+  const primaryModel = "gemini-3.5-flash";
+  const fallbackModel = "gemini-3.1-flash-lite";
+  
+  let lastError: any = null;
+
+  // Attempt up to 2 times with primary model using exponential backoff
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      console.log(`[Gemini API - learning] Primary model attempt ${attempt} starting for: ${primaryModel}`);
+      const response = await ai.models.generateContent({
+        model: primaryModel,
+        contents: params.contents,
+        config: params.config,
+      });
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      const isTransient = 
+        error?.status === "UNAVAILABLE" || 
+        error?.code === 503 || 
+        (error?.message && (
+          error.message.includes("high demand") || 
+          error.message.includes("temporary") || 
+          error.message.includes("RESOURCE_EXHAUSTED") ||
+          error.message.includes("503") ||
+          error.message.includes("UNAVAILABLE")
+        ));
+      
+      if (!isTransient) {
+        throw error;
+      }
+
+      console.warn(`[Gemini API - learning] Primary model attempt ${attempt} failed with transient demand/congestion error:`, error.message || error);
+      if (attempt < 2) {
+        const delay = attempt * 1200;
+        console.log(`[Gemini API - learning] Waiting ${delay}ms before retrying primary model...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // If primary model options failed, fall back to gemini-3.1-flash-lite
+  console.log(`[Gemini API - learning] Primary model attempts exhausted. Falling back to lightweight resilient model: ${fallbackModel}`);
+  try {
+    const response = await ai.models.generateContent({
+      model: fallbackModel,
+      contents: params.contents,
+      config: params.config,
+    });
+    return response;
+  } catch (fallbackError: any) {
+    console.error(`[Gemini API - learning] Fallback model ${fallbackModel} also failed:`, fallbackError.message || fallbackError);
+    throw fallbackError || lastError;
+  }
+}
+
 // Helper to ensure database files exist
 async function ensureFiles() {
   try {
@@ -122,8 +186,7 @@ export async function generateLearningSuggestion(
     Fulfill this request by returning valid JSON conforming strictly to the requested schema.
   `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.5-flash",
+  const response = await generateContentWithFallback(ai, {
     contents: prompt,
     config: {
       temperature: 0.3,
