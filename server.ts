@@ -1,0 +1,390 @@
+import "dotenv/config";
+import express from "express";
+import path from "path";
+import { GoogleGenAI } from "@google/genai";
+import { createServer as createViteServer } from "vite";
+import { 
+  getLearningData, 
+  logFailedQuery, 
+  generateLearningSuggestion, 
+  approveLearningPattern, 
+  ignoreFailedQuery 
+} from "./learningService";
+
+// Helper to construct a dynamic, enriched instruction for Gemini containing all active learned memory
+async function buildAdaptiveInstruction(baseInstruction: string): Promise<string> {
+  let instruction = baseInstruction || "You are an expert programming chatbot. You write clean, correct, and well-structured code. Always explain concepts clearly.";
+  
+  try {
+    const { patterns } = await getLearningData();
+    if (patterns && patterns.length > 0) {
+      instruction += `\n\n=== DYNAMIC ADAPTIVE LEARNING MEMORY ===\n`;
+      instruction += `You have learned new custom programming patterns from developer requests. If the user asks about any of these patterns/topics (matching keywords, query words, or semantic equivalents), you MUST reply by outputting the exact predefined 'responseMarkdown' content. DO NOT generate alternative content or trigger any fallback warnings for these topics:\n\n`;
+      
+      patterns.forEach((p, idx) => {
+        instruction += `[Pattern ${idx + 1}]: "${p.pattern}" (Title: "${p.title}", Track: "${p.track}", Level: "${p.level}")\n`;
+        instruction += `Response Content to Output:\n${p.responseMarkdown}\n\n`;
+      });
+      
+      instruction += `=========================================\n`;
+    }
+  } catch (err) {
+    console.error("Failed to load learned memory rules:", err);
+  }
+  
+  return instruction;
+}
+
+// In-memory sessions
+interface SessionUser {
+  email: string;
+  name: string;
+  picture: string;
+}
+const sessions = new Map<string, SessionUser>();
+
+function parseCookies(cookieString?: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!cookieString) return cookies;
+  
+  cookieString.split(';').forEach((cookie) => {
+    const parts = cookie.split('=');
+    const name = parts[0]?.trim();
+    const val = parts.slice(1).join('=')?.trim();
+    if (name) {
+      cookies[name] = decodeURIComponent(val || '');
+    }
+  });
+  return cookies;
+}
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  // Trust reverse proxies to resolve protocol and host headers correctly
+  app.set("trust proxy", true);
+
+  // Middleware to parse JSON request bodies
+  app.use(express.json());
+
+  // OAuth Endpoints
+  app.get("/api/auth/url", (req, res) => {
+    try {
+      const redirectUri = process.env.APP_URL
+        ? `${process.env.APP_URL.replace(/\/$/, "")}/auth/callback`
+        : `${req.protocol}://${req.get("host")}/auth/callback`;
+
+      const params = new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID || "",
+        redirect_uri: redirectUri,
+        response_type: "code",
+        scope: "openid email profile",
+        access_type: "offline",
+        prompt: "consent",
+      });
+
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      res.json({ url: authUrl });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to generate auth url" });
+    }
+  });
+
+  app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
+    const { code } = req.query;
+    if (!code) {
+      return res.status(400).send("Authorization code is required");
+    }
+
+    try {
+      const redirectUri = process.env.APP_URL
+        ? `${process.env.APP_URL.replace(/\/$/, "")}/auth/callback`
+        : `${req.protocol}://${req.get("host")}/auth/callback`;
+
+      // Exchange authorization code for token
+      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          code: String(code),
+          client_id: process.env.GOOGLE_CLIENT_ID || "",
+          client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }).toString(),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error("Token exchange failed:", errorText);
+        let detailedError = errorText;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed.error_description) {
+            detailedError = `${parsed.error} - ${parsed.error_description}`;
+          } else if (parsed.error) {
+            detailedError = parsed.error;
+          }
+        } catch (_) {}
+        throw new Error(`Token exchange failed (HTTP ${tokenResponse.status}): ${detailedError}. Expected Redirect URI config: ${redirectUri}`);
+      }
+
+      const tokenData = (await tokenResponse.json()) as any;
+      const accessToken = tokenData.access_token;
+
+      // Get user info from Google
+      const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!userInfoResponse.ok) {
+        throw new Error(`Failed to fetch userinfo: ${userInfoResponse.statusText}`);
+      }
+
+      const userInfo = (await userInfoResponse.json()) as any;
+
+      // Create session
+      const sessionId = "session_" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
+      sessions.set(sessionId, {
+        email: userInfo.email || "",
+        name: userInfo.name || "",
+        picture: userInfo.picture || "",
+      });
+
+      // Set cookie secure sameSite none for iframe compatibility
+      res.setHeader(
+        "Set-Cookie",
+        `session_id=${sessionId}; Path=/; SameSite=None; Secure; HttpOnly; Max-Age=86400`
+      );
+
+      // Return popup success HTML
+      res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');
+                window.close();
+              } else {
+                window.location.href = '/';
+              }
+            </script>
+            <p>Authentication successful. You can close this window now.</p>
+          </body>
+        </html>
+      `);
+    } catch (err: any) {
+      console.error("Authentication callback error:", err);
+      res.status(500).send(`Authentication failed: ${err.message || err}`);
+    }
+  });
+
+  app.get("/api/auth/me", (req, res) => {
+    try {
+      const cookies = parseCookies(req.headers.cookie);
+      const sessionId = cookies["session_id"];
+      if (sessionId && sessions.has(sessionId)) {
+        res.json({ loggedIn: true, user: sessions.get(sessionId) });
+      } else {
+        res.json({ loggedIn: false });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to fetch user session" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    try {
+      const cookies = parseCookies(req.headers.cookie);
+      const sessionId = cookies["session_id"];
+      if (sessionId) {
+        sessions.delete(sessionId);
+      }
+      res.setHeader(
+        "Set-Cookie",
+        `session_id=; Path=/; SameSite=None; Secure; HttpOnly; Max-Age=0`
+      );
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to log out" });
+    }
+  });
+
+  // API endpoint to process chat requests
+  app.post("/api/chat", async (req, res) => {
+    let lastQueryText = "";
+    try {
+      const { contents, systemInstruction } = req.body;
+
+      if (!contents || !Array.isArray(contents)) {
+        return res.status(400).json({ error: "Invalid requests. 'contents' array is required." });
+      }
+
+      // Extract the last user query text for dynamic exception interception logging
+      const lastUserMessage = [...contents].reverse().find(msg => msg.role === "user");
+      lastQueryText = lastUserMessage?.parts?.[0]?.text || "";
+
+      const activeApiKey = process.env.GEMINI_API_KEY || "";
+      if (!activeApiKey) {
+        return res.status(500).json({ 
+          error: "GEMINI_API_KEY is not configured in environment variables. Please check Settings/Secrets." 
+        });
+      }
+
+      // Lazy initialization inside route handler
+      const ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      // Inject learned patterns dynamically into system instruction
+      const enrichedSystemInstruction = await buildAdaptiveInstruction(systemInstruction);
+
+      // Generate content using gemini-3.5-flash as recommended
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: contents,
+        config: {
+          systemInstruction: enrichedSystemInstruction,
+          temperature: 0.7,
+        },
+      });
+
+      const responseText = response.text || "";
+
+      // Interception engine: Automatically detect fallback/out-of-scope replies (e.g. "related to my knowledge")
+      const lowerResponse = responseText.toLowerCase();
+      const isFallback = 
+        lowerResponse.includes("related to my knowledge") || 
+        lowerResponse.includes("happy to give you answers") || 
+        lowerResponse.includes("ask something related") ||
+        lowerResponse.includes("can you ask something related");
+
+      if (isFallback && lastQueryText) {
+        await logFailedQuery(lastQueryText, responseText, "out_of_scope").catch(err => {
+          console.error("Logger Interceptor error:", err);
+        });
+      }
+
+      res.json({ text: responseText, intercepted: isFallback });
+    } catch (error: any) {
+      console.error("Gemini API Error:", error);
+      
+      // Auto-log the failed query as an API failure to enable retry suggestions
+      if (lastQueryText) {
+        await logFailedQuery(lastQueryText, error?.message || "Gemini API failure", "api_error").catch(() => {});
+      }
+      
+      res.status(500).json({ error: error?.message || "An unexpected error occurred during generating content." });
+    }
+  });
+
+  // GET: Fetch logs and current learned patterns
+  app.get("/api/learning", async (req, res) => {
+    try {
+      const data = await getLearningData();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to get learning logs." });
+    }
+  });
+
+  // POST: Explicitly log a failed query (manual user report / flag)
+  app.post("/api/learning/report", async (req, res) => {
+    try {
+      const { query, response } = req.body;
+      if (!query) {
+        return res.status(400).json({ error: "Query is required to log feedback." });
+      }
+      const log = await logFailedQuery(query, response || "", "user_flagged");
+      res.json({ success: true, log });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to log query." });
+    }
+  });
+
+  // POST: Let Gemini analyze and suggest a patterns match configuration
+  app.post("/api/learning/suggest", async (req, res) => {
+    try {
+      const { logId } = req.body;
+      if (!logId) {
+        return res.status(400).json({ error: "logId is required to generate a suggestion." });
+      }
+
+      const activeApiKey = process.env.GEMINI_API_KEY || "";
+      if (!activeApiKey) {
+        return res.status(500).json({ 
+          error: "GEMINI_API_KEY is not configured. Cannot generate suggestion." 
+        });
+      }
+
+      const suggestion = await generateLearningSuggestion(logId, activeApiKey);
+      res.json({ success: true, suggestion });
+    } catch (err: any) {
+      console.error("AI Pattern Suggestion Error:", err);
+      res.status(500).json({ error: err?.message || "Failed to generate AI learning suggestion." });
+    }
+  });
+
+  // POST: Approve and save a learned pattern definition
+  app.post("/api/learning/teach", async (req, res) => {
+    try {
+      const { logId, customPattern } = req.body;
+      if (!logId) {
+        return res.status(400).json({ error: "logId is required to register learned pattern." });
+      }
+
+      const pattern = await approveLearningPattern(logId, customPattern);
+      res.json({ success: true, pattern });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to save dynamic learned pattern." });
+    }
+  });
+
+  // POST: Mark query as ignored
+  app.post("/api/learning/ignore", async (req, res) => {
+    try {
+      const { logId } = req.body;
+      if (!logId) {
+        return res.status(400).json({ error: "logId is required." });
+      }
+      await ignoreFailedQuery(logId);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to ignore log item." });
+    }
+  });
+
+  // Serve static assets or use Vite's development middleware
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    // Serve client application for all other requests (SPA Routing)
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running at http://0.0.0.0:${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error("Failed to start server:", err);
+});

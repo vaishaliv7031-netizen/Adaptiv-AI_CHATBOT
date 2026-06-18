@@ -1,0 +1,17 @@
+[
+  {
+    "id": "log_1781370533056_383",
+    "query": "who are you",
+    "response": "hey\ud83d\udc4b!.. can you ask something related to my knowledge... i am happy to give you answers \ud83e\udd70",
+    "category": "out_of_scope",
+    "timestamp": "2026-06-13T17:08:53.056956Z",
+    "status": "resolved",
+    "suggestion": {
+      "pattern": "who are you",
+      "title": "who are you Guide",
+      "track": "General",
+      "level": "Intermediate",
+      "responseMarkdown": "hey ! my name is Alex ,how can i help you?"
+    }
+  }
+]

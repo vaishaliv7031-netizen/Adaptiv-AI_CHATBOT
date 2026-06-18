@@ -1,0 +1,6 @@
+{
+  "name": "DevChat - Programming Chatbot",
+  "description": "An expert programming companion powered by Gemini AI, with quick coding actions, local session persistence, and data architecture tutorials.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

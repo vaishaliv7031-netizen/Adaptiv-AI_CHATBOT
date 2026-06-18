@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programming Agent Workspace</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+     
+       /* ==========================================================================
+           🔒 VIEWPORT LOCKING SYSTEM (Stops the page from moving/scrolling)
+           ========================================================================== */
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        
+        body { 
+            display: flex; 
+            width: 100%;
+            height: 100vh; /* Locks body to exact viewport height and dynamic viewport */
+            background-color: #0d1224; 
+            color: #fff; 
+            overflow: hidden; /* Prevent global page scrolling */
+        }
+        
+        /* Sidebar Panel - Fixed height matching parent */
+        .sidebar { 
+            width: 300px; 
+            background-color: #171e36; 
+            display: flex; 
+            flex-direction: column; 
+            padding: 20px 15px; 
+            gap: 15px; 
+            border-right: 1px solid #1e294b; 
+            transition: transform 0.3s ease;
+            z-index: 10;
+            height: 100vh; 
+        }
+
+        /* Main Chat Frame - Vertically stacked, takes up all remaining space */
+        .chat-area { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; /* Must match parent */
+            background-color: #0f172a; 
+            overflow: hidden; /* Stops whole chat area from scrolling */
+        }
+
+        .chat-header { 
+            height: 70px; /* Fixed explicit height for header */
+            padding: 0 20px; 
+            background-color: #0f172a; 
+            border-bottom: 1px solid #1e294b; 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+            flex-shrink: 0; /* Prevents header from squishing */
+        }
+
+        /* 🌟 THE ONLY BOX ALLOWED TO SCROLL */
+        .message-container { 
+            flex: 1; 
+            overflow-y: auto; /* Activates scrollbars ONLY inside this container */
+            padding: 30px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 20px; 
+            background-color: #0f172a;
+        }
+
+        .input-panel { 
+            min-height: 60px; /* Fixed explicit height for input desk */
+            padding: 10px 15px; 
+            background-color: #0f172a; 
+            display: flex; 
+            gap: 15px; 
+            align-items: center; 
+            flex-shrink: 0; /* Prevents input panel from hiding under the keyboard */
+            border-top: 1px solid #1e294b;
+        }
+           
+        /* Active Workspace Card */
+        .active-card { background: #111726; border: 1px solid #2e3b63; border-radius: 8px; padding: 15px; position: relative; }
+        .agent-tag { background: #6366f1; color: white; font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 4px; width: max-content; margin-bottom: 10px; text-transform: uppercase; }
+        .card-title { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+        .card-status { font-size: 12px; color: #10b981; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+        .card-desc { font-size: 11px; color: #64748b; }
+
+        /* Navigation Button */
+        .new-chat-btn { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .new-chat-btn:hover { background: #1d4ed8; }
+        
+        /* Workspace View Navigation buttons */
+        .view-tab-btn {
+            width: 100%;
+            padding: 10px 14px;
+            background: #1e294b;
+            color: #cbd5e1;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .view-tab-btn:hover {
+            background: #243361;
+            color: #fff;
+        }
+        .view-tab-btn.active {
+            background: #2563eb;
+            color: #fff;
+            border-color: #3b82f6;
+        }
+
+        .section-title { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; }
+        .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        
+        /* Chat Items */
+        .chat-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-radius: 8px; cursor: pointer; background: #1e294b; border: 1px solid transparent; font-size: 14px; color: #cbd5e1; transition: all 0.2s; }
+        .chat-item:hover { background: #243361; color: #fff; }
+        .chat-item.active { background: #1e294b; border-color: #3b82f6; color: #fff; }
+        .chat-item .chat-info { display: flex; align-items: center; gap: 10px; width: 80%; }
+        .chat-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .delete-btn { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px; transition: color 0.2s; }
+        .delete-btn:hover { color: #f43f5e; }
+
+        /* Main Workspace Section */
+        .chat-area { flex: 1; display: flex; flex-direction: column; background-color: #0f172a; }
+        .chat-header { padding: 20px; background-color: #0f172a; border-bottom: 1px solid #1e294b; font-size: 16px; font-weight: 600; color: #f8fafc; display: flex; align-items: center; gap: 15px; }
+        
+        .menu-toggle 
+        { 
+         background: #2563eb; 
+         border: none; 
+         color: #fff; 
+         width: 40px; 
+         height: 40px; 
+         border-radius: 6px; 
+         display: flex; 
+         align-items: center; 
+         justify-content: center; 
+         cursor: pointer; 
+         font-size: 18px; 
+         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+         z-index: 12;
+        }
+        .menu-toggle:hover { background: #1d4ed8;}
+
+        .message-container { flex: 1; overflow-y: auto; padding: 30px; display: flex; flex-direction: column; gap: 20px; }
+        .welcome-box { background-color: #111726; border: 1px solid #1e294b; padding: 15px 20px; border-radius: 8px; color: #94a3b8; font-size: 14px; max-width: max-content; margin-bottom: 10px; }
+
+        /* Bubble Elements Styling */
+        .msg { max-width: 80%; padding: 14px 18px; border-radius: 8px; line-height: 1.6; font-size: 14px; word-wrap: break-word; }
+        .user-msg { background-color: #2563eb; color: #fff; align-self: flex-end; }
+        .bot-msg { 
+            background: transparent !important; 
+            color: #cbd5e1 !important; 
+            align-self: flex-start !important; 
+            width: 100% !important; 
+            max-width: 100% !important; 
+            padding: 5px 10px !important;
+
+            /* This forces the exact small font size you want */
+            font-size: 14px !important; 
+            font-weight: normal !important;
+            line-height: 1.6 !important;
+            
+            /* This completely stops text from running off the screen */
+            white-space: normal !important; 
+            word-wrap: break-word !important;
+            word-break: break-word !important;
+            display: block !important;
+        } 
+        
+        /* Markdown Spacing Rule sets */
+        .bot-msg pre { background: #0b0f19; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 14px 0; border: 1px solid #1e294b; }
+        .bot-msg code {
+             font-family: Courier New,Courier, monospace;
+              color: #f472b6; 
+              font-size: 13px; 
+            }
+        .bot-msg h1 { 
+            font-size: 19px; 
+            margin-bottom: 12px; 
+            color: #fff; 
+            font-weight: 600; 
+        }
+        .bot-msg h2 {
+            font-size: 18px; 
+            margin: 16px 0 10px 0;
+            color: #fff; 
+            font-weight: 600; 
+            }
+        .bot-msg h3 { 
+            font-size: 16px !important;
+            font-weight: bold !important;
+            color: #ffffff !important;
+            margin-top: 15px !important;
+            margin-bottom: 5px !important;
+            }
+        .bot-msg p {
+            font-size: 14px !important;
+            font-weight: normal !important;
+            color: #cbd5e1 !important;
+            line-height: 1.6 !important;
+            }
+            /* Standard Paragraphs */
+        .bot-msg p { font-size: 14px; margin-bottom: 12px; color: #cbd5e1; line-height: 1.6; }
+
+        /* Lists & Bullet Points - Ensuring sizes match standard paragraphs perfectly */
+        .bot-msg ul, .bot-msg ol { margin: 8px 0 14px 20px; }
+        .bot-msg li { font-size: 14px; margin-bottom: 6px; color: #cbd5e1; line-height: 1.5; }
+
+        /* Spinner & Progress indicator keyframe */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Input Container Elements */
+        .input-panel { padding: 25px 30px; background-color: #0f172a; display: flex; gap: 15px; align-items: center; }
+        .input-wrapper { flex: 1; background: #1e294b; border: 1px solid #334155; border-radius: 8px; display: flex; align-items: center; padding: 4px 10px; }
+        .input-wrapper:focus-within { border-color: #3b82f6; }
+        .input-wrapper input { flex: 1; padding: 12px; background: transparent; border: none; color: white; font-size: 14px; outline: none; }
+        .send-btn { padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; white-space: nowrap; }
+        .send-btn:hover { background: #059669; }
+
+        /* ==========================================================================
+           📱 RESPONSIVE MEDIA QUERIES (Mobile Breakpoints Overwrite)
+           ========================================================================== */
+          @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                left: 0;
+                top: 0;
+                transform: translateX(-100%); /* Hides the drawer off-screen left */
+                width: 280px;
+                margin-left: 0 !important; 
+                transition: transform 0.3s ease !important; /* Smooth slide out animation */
+                height: 100dvh !important;
+                z-index: 9999 !important; /* Forces drawer to float over everything */
+            }
+
+            .sidebar.active {
+                transform: translateX(0) !important; 
+            }
+            
+            .sidebar.active ~ .chat-area {
+                opacity: 0.4;
+                pointer-events: none; /* Stops accidental inputs when drawer is active */
+            }
+            
+            .menu-toggle {
+                z-index: 10000 !important;
+                position: relative;
+            }
+             .input-panel {
+              padding: 8px;
+              gap: 8px;
+            }
+            .input-wrapper input{
+                font-size:14px;
+                padding:10px;
+            }
+            .send-btn{
+                padding:10px 20px;
+                font-size:14px;
+            }
+            html, body {/* prevent pull-to-refresh on mobile */
+             overscroll-behavior: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar" id="sidebarPanel"> 
+        <div class="active-card">
+            <div class="agent-tag">Query Agent</div>
+            <div class="card-title">⚙️ Active Workspace</div>
+            <div class="card-status">🛡️ System Core: Connected</div>
+            <div class="card-desc">Premium AI Access Engaged</div>
+        </div>
+
+        <button class="new-chat-btn" onclick="createNewChat()">+ + New Chat Thread</button>
+        
+        <div class="section-title">Saved Discussions</div>
+        <div class="chat-list" id="chatList"></div>
+    </div>
+
+    <div class="chat-area">
+        <div class="chat-header">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <span id="currentChatTitle">🎓 Programming_Agent - Default Chat</span>
+        </div>
+        
+        <div class="message-container" id="msgContainer">
+            <div class="welcome-box" id="welcomePrompt">
+                New active session workspace [Default Chat] instantiated. Ask me anything!
+            </div>
+        </div>
+        
+        <div class="input-panel">
+            <div class="input-wrapper">
+                <input type="text" id="userInput" placeholder="Ask a programming question..." onkeydown="if(event.key==='Enter') sendPrompt()">
+            </div>
+            <button class="send-btn" onclick="sendPrompt()">Send Prompt</button>
+        </div>
+    </div>
+
+    <script>
+        // Global Fetch Interceptor to handle Session Session Expirations and 401 statuses gracefully
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            return originalFetch(...args).then(response => {
+                if (response.status === 401) {
+                    console.warn("🔐 Session unauthorized or expired. Redirecting to gateway login...");
+                    window.location.href = "/login";
+                    throw new Error("Unauthorized");
+                }
+                return response;
+            });
+        };
+
+        let currentChatName = "Default Chat";
+        let activeView = "chat"; // "chat" or "learning"
+        
+        let learningLogs = [];
+        let activePatterns = [];
+        let activeSubTab = "logs"; // "logs" or "patterns"
+        let selectedLogItem = null;
+        let suggestionLoading = false;
+
+        window.onload = function() {
+            fetchSavedChats();
+        };
+
+        function switchView(view) {
+            activeView = view;
+            const chatTab = document.getElementById("chatTabBtn");
+            const learningTab = document.getElementById("learningHubTabBtn");
+            const inputPanel = document.querySelector(".input-panel");
+            const container = document.getElementById("msgContainer");
+            
+            // Clear any active failed banners
+            const existingB = document.getElementById("interceptorBanner");
+            if (existingB) existingB.remove();
+
+            if (view === "chat") {
+                chatTab.classList.add("active");
+                learningTab.classList.remove("active");
+                inputPanel.style.display = "flex";
+                // Restore current chat
+                loadChatWindow(currentChatName);
+            } else {
+                learningTab.classList.add("active");
+                chatTab.classList.remove("active");
+                inputPanel.style.display = "none";
+                document.getElementById("currentChatTitle").innerText = `🧠 Adaptive Learning Lab - Memory Engine`;
+                fetchAndRenderLearningHub();
+            }
+
+            if (window.innerWidth <= 768) {
+                document.getElementById("sidebarPanel").classList.remove("active");
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById("sidebarPanel");
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle("active");
+                sidebar.classList.remove("collapsed");
+            } else {
+                sidebar.classList.toggle("collapsed");
+                sidebar.classList.remove("active");
+            }
+        }
+
+        document.addEventListener("click", function(event) {
+            if (window.innerWidth <= 768) {
+                const sidebar = document.getElementById("sidebarPanel");
+                const menuToggle = document.querySelector(".menu-toggle");
+        
+                if (sidebar.classList.contains("active") && 
+                    !sidebar.contains(event.target) && 
+                    !menuToggle.contains(event.target)) {
+                    sidebar.classList.remove("active");
+                }
+            }
+        }); 
+
+        function fetchSavedChats() {
+            fetch('/get_chats')
+                .then(res => res.json())
+                .then(data => {
+                    renderSidebar(data);
+                    if(data.length > 0) {
+                        loadChatWindow(data[data.length - 1].name, data);
+                    } else {
+                        createNewChat();
+                    }
+                });
+        } 
+
+        function renderSidebar(chats) {
+            const list = document.getElementById("chatList");
+            list.innerHTML = "";
+            chats.forEach(chat => {
+                const item = document.createElement("div");
+                const isSelected = activeView === 'chat' && chat.name === currentChatName;
+                item.className = `chat-item ${isSelected ? 'active' : ''}`;
+                
+                item.onclick = () => {
+                    if (activeView !== "chat") {
+                        switchView("chat");
+                    }
+                    loadChatWindow(chat.name);
+                    if (window.innerWidth <= 768) {
+                        document.getElementById("sidebarPanel").classList.remove("active");
+                    }
+                };
+                
+                const infoWrapper = document.createElement("div");
+                infoWrapper.className = "chat-info";
+                infoWrapper.innerHTML = `💬 <span>${chat.name}</span>`;
+                
+                const delBtn = document.createElement("button");
+                delBtn.className = "delete-btn";
+                delBtn.innerHTML = "🗑️";
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteChatThread(chat.name);
+                };
+
+                item.appendChild(infoWrapper);
+                item.appendChild(delBtn);
+                list.appendChild(item);
+            });
+        }
+
+        function loadChatWindow(name, optionalData = null) {
+            currentChatName = name;
+            document.getElementById("currentChatTitle").innerText = `🎓 Programming_Agent - ${name}`;
+            
+            const welcomeBox = document.getElementById("welcomePrompt");
+            if(welcomeBox) welcomeBox.style.display = "none";
+
+            if(optionalData) {
+                displayMessages(optionalData.find(c => c.name === name));
+                renderSidebar(optionalData);
+            } else {
+                fetch('/get_chats').then(res => res.json()).then(chats => {
+                    displayMessages(chats.find(c => c.name === name));
+                    renderSidebar(chats);
+                });
+            }
+        }
+
+        function displayMessages(chatObj) {
+            const container = document.getElementById("msgContainer");
+            container.innerHTML = "";
+            if(!chatObj || !chatObj.messages || chatObj.messages.length === 0) {
+                container.innerHTML = `<div class="welcome-box" id="welcomePrompt">New active session workspace [Default Chat] instantiated. Ask me anything!</div>`;
+                return;
+            }
+
+            chatObj.messages.forEach(msg => {
+                if(msg.user) {
+                    let cleanUserText = msg.user.replace(/\\n/g, '\n');
+                    appendBubble(cleanUserText, "user-msg");
+                }
+                if(msg.bot) appendBubble(msg.bot, "bot-msg", msg.user);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function createNewChat() {
+            const tempName = "New Chat Thread " + Math.floor(Math.random() * 1000);
+            currentChatName = tempName;
+            document.getElementById("currentChatTitle").innerText = `🎓 Programming_Agent - New Chat Session`;
+            
+            const container = document.getElementById("msgContainer");
+            container.innerHTML = `<div class="welcome-box" id="welcomePrompt">New active session workspace [Default Chat] instantiated. Ask me anything!</div>`;
+
+            if (activeView !== "chat") switchView("chat");
+
+            fetch('/save_chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: tempName, messages: [] })
+            }).then(() => fetchSavedChats());
+        }
+
+        function deleteChatThread(name) {
+            fetch('/delete-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_name: name })
+            }).then(() => fetchSavedChats());
+        }
+
+        function appendBubble(text, cssClass, userQueryContext = "") {
+            const container = document.getElementById("msgContainer");
+            
+            const welcomeBox = document.getElementById("welcomePrompt");
+            if(welcomeBox) welcomeBox.remove();
+
+            const bubble = document.createElement("div");
+            bubble.className = `msg ${cssClass}`;
+            
+            if (cssClass === "bot-msg") {
+                let cleanedQuery = userQueryContext ? userQueryContext.toLowerCase() : "";
+                let filteredText = text;
+
+                // Simple loop intercepts
+                if (cleanedQuery.includes("loop") && cleanedQuery.includes("python")) {
+                    filteredText = `# 🚀 Topic Found: Python Loops and Iteration\n**Curriculum Area:** Python Basic — [Basic Track]\n\n**Definition:** *Structures used to execute a block of code repeatedly in Python.*\n\n### 📘 Conceptual Breakdown:\n1. **For Loops**: Used to iterate over sequences (like lists, tuples, or ranges).\n2. **While Loops**: Execute as long as a condition evaluates to True.\n\n### 💻 Applied Code Sandbox:\n\`\`\`python\n# Iterating with a for loop\nfor i in range(3):\n    print(i)\n\n# Checking states with a while loop\ncount = 0\nwhile count < 3:\n    print(count)\n    count += 1\n\`\`\``;
+                } 
+                else if (cleanedQuery.includes("loop") && cleanedQuery.includes("java")) {
+                    filteredText = `# 🚀 Topic Found: Java Iteration Loops\n**Curriculum Area:** Java Basic — [Basic Track]\n\n**Definition:** *Control flow structures built to repeat standard blocks of code multiple times in Java.*\n\n### 📘 Conceptual Breakdown:\n1. **For Loop**: Ideal when the exact number of iterations is known.\n2. **While Loop**: Tests conditions before running the inner statement blocks.\n\n### 💻 Applied Code Sandbox:\n\`\`\`java\n// Standard Java for loop structure\nfor(int i = 0; i < 3; i++) {\n    System.out.println(i);\n}\n\`\`\``;
+                }
+                else if (cleanedQuery.includes("loop") && (cleanedQuery.includes("c ") || cleanedQuery === "c" || cleanedQuery.endsWith(" c") || cleanedQuery.startsWith("c "))) {
+                    filteredText = `# 🚀 Topic Found: C System-Level Loops\n**Curriculum Area:** C Track — [System-Level Foundations]\n\n**Definition:** *Procedural control tracks used for structured flow layout and block repetition in C.*\n\n### 📘 Conceptual Breakdown:\n1. **For Loop**: Used to repeat a block of statements a specific number of times.\n2. **While Loop**: Repeats a statement while a given condition remains true.\n3. **Do-While Loop**: Executes the block once first, then checks the condition.\n\n### 💻 Applied Code Sandbox:\n\`\`\`c\n#include <stdio.h>\n\nint main() {\n    // Standard C loop structure\n    for(int i = 0; i < 3; i++) {\n        printf("%d\\n", i);\n    }\n    return 0;\n}\n\`\`\``;
+                }
+
+                // Parse standard markdown
+                let finalMarkdown = filteredText.replace(/\\n/g, '\n');
+                bubble.innerHTML = marked.parse(finalMarkdown); 
+
+                // Marked parsed response
+              } else {
+                  bubble.innerText = text;
+              }
+            
+            container.appendChild(bubble);
+
+            // Smoothly scroll down to show the new response
+            container.scrollTo({    
+                top: container.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+
+        function sendPrompt() {
+            const input = document.getElementById("userInput");
+            const query = input.value.trim();
+            if(!query) return;
+
+            appendBubble(query, "user-msg");
+            input.value = "";
+
+            fetch('/get', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: query, chat_name: currentChatName })
+            })
+            .then(res => res.json())
+            .then(data => {
+                appendBubble(data.response, "bot-msg", query);
+                
+
+
+                if (data.updated_chat_name && data.updated_chat_name !== currentChatName) {
+                    currentChatName = data.updated_chat_name;
+                    document.getElementById("currentChatTitle").innerText = `🎓 Programming_Agent - ${currentChatName}`;
+                }
+                fetch('/get_chats').then(r => r.json()).then(chats => renderSidebar(chats));
+
+                // Focus on top of new bot message bubble smoothly
+                const messages = document.getElementsByClassName("bot-msg");
+                if (messages.length > 0) {
+                    const lastBotMessage = messages[messages.length - 1];
+                    lastBotMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            });
+        }
+
+        function showQueryFailedInterceptorBox(query) {
+            let banner = document.getElementById("interceptorBanner");
+            if (!banner) {
+                banner = document.createElement("div");
+                banner.id = "interceptorBanner";
+                banner.style.cssText = "position: fixed; bottom: 80px; right: 20px; background: #fbbf24; border: 1px solid #d97706; border-radius: 8px; padding: 12px 16px; color: #0d1224; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 8px; max-width: 320px; animation: slideIn 0.3s ease-out;";
+                
+                if (!document.getElementById("slide-in-style")) {
+                    const style = document.createElement("style");
+                    style.id = "slide-in-style";
+                    style.innerHTML = `
+                        @keyframes slideIn {
+                            from { transform: translateY(20px); opacity: 0; }
+                            to { transform: translateY(0); opacity: 1; }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+                document.body.appendChild(banner);
+            }
+            
+            banner.innerHTML = `
+                <div style="display: flex; align-items: start; gap: 8px;">
+                    <span style="font-size: 16px;">🧠</span>
+                    <div>
+                        <strong style="font-size: 11px; display: block;">Query Intercept Box alert!</strong>
+                        <span style="font-size: 10px; opacity: 0.9; display: block; margin-top: 2px; line-height: 1.3;">
+                            "${query}" fell back on core limits. This anomaly was logged to the teaching base!
+                        </span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
+                    <button onclick="document.getElementById('interceptorBanner').remove();" style="background: transparent; border: none; color: #451a03; font-size: 10px; font-weight: bold; cursor: pointer; padding: 4px 8px;">
+                        Dismiss
+                    </button>
+                    <button onclick="document.getElementById('interceptorBanner').remove(); switchView('learning');" style="background: #0f172a; border: none; color: #fff; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer; padding: 4px 8px;">
+                        Teach Chatbot
+                    </button>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                const b = document.getElementById("interceptorBanner");
+                if (b) b.remove();
+            }, 8000);
+        }
+
+        // ------------------ ADAPTIVE LEARNING HUB SCRIPTING ------------------
+
+        function fetchAndRenderLearningHub() {
+            const container = document.getElementById("msgContainer");
+            container.innerHTML = `
+                <div style="display: flex; justify-content: center; align-items: center; height: 200px;">
+                    <div style="font-size: 14px; color: #64748b; display: flex; align-items: center; gap: 8px;">
+                        <span class="spinner" style="border: 2px solid #334155; border-top-color: #3b82f6; border-radius: 50%; width: 16px; height: 16px; display: inline-block; animation: spin 1s linear infinite;"></span>
+                        Querying adaptive core records...
+                    </div>
+                </div>
+            `;
+            
+            fetch('/api/learning')
+                .then(res => res.json())
+                .then(data => {
+                    learningLogs = data.logs || [];
+                    activePatterns = data.patterns || [];
+                    renderLearningHubScreen();
+                })
+                .catch(err => {
+                    container.innerHTML = `
+                        <div style="padding: 20px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; color: #f87171; font-size: 13px;">
+                            <strong>Failed to load learning records:</strong> ${err.message || err}
+                        </div>
+                    `;
+                });
+        }
+
+        function renderLearningHubScreen() {
+            const container = document.getElementById("msgContainer");
+            container.innerHTML = "";
+            
+            // 1. STATS ROW
+            const statsRow = document.createElement("div");
+            statsRow.style.cssText = "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;";
+            
+            const pendingCount = learningLogs.filter(l => l.status === 'pending').length;
+            const patternsCount = activePatterns.length;
+
+            statsRow.innerHTML = `
+                <div style="background: #111726; border: 1px solid #1e294b; border-radius: 12px; padding: 15px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="font-size: 10px; color: #64748b; font-weight: bold; text-transform: uppercase;">Intercepted Failures</span>
+                        <h2 style="font-size: 24px; font-weight: bold; color: #f59e0b; margin-top: 5px;">${pendingCount}</h2>
+                        <span style="font-size: 10px; color: #92400e; font-weight: 500; margin-top: 2px; display: block;">Pending AI Guidelines</span>
+                    </div>
+                    <div style="font-size: 24px;">⚠️</div>
+                </div>
+                <div style="background: #111726; border: 1px solid #1e294b; border-radius: 12px; padding: 15px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="font-size: 10px; color: #64748b; font-weight: bold; text-transform: uppercase;">Learned Patterns</span>
+                        <h2 style="font-size: 24px; font-weight: bold; color: #10b981; margin-top: 5px;">${patternsCount}</h2>
+                        <span style="font-size: 10px; color: #065f46; font-weight: 500; margin-top: 2px; display: block;">Active Memory Rules</span>
+                    </div>
+                    <div style="font-size: 24px;">✅</div>
+                </div>
+                <div style="background: #111726; border: 1px solid #1e294b; border-radius: 12px; padding: 15px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="font-size: 10px; color: #64748b; font-weight: bold; text-transform: uppercase;">Autonomic Core</span>
+                        <h3 style="font-size: 14px; font-weight: bold; color: #6366f1; margin-top: 8px; display: flex; align-items: center; gap: 6px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #6366f1; display: inline-block; animation: pulse 1.5s infinite;"></span>
+                            Live Learning Loop
+                        </h3>
+                        <span style="font-size: 10px; color: #64748b; margin-top: 4px; display: block;">Sync to local memory.json</span>
+                    </div>
+                    <div style="font-size: 24px;">🧠</div>
+                </div>
+            `;
+            container.appendChild(statsRow);
+
+            if (!document.getElementById("pulse-style")) {
+                const style = document.createElement("style");
+                style.id = "pulse-style";
+                style.innerHTML = `
+                    @keyframes pulse {
+                        0% { opacity: 0.3; }
+                        50% { opacity: 1; }
+                        100% { opacity: 0.3; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // 2. INNER SUB-BAR Tab switcher controls
+            const subBar = document.createElement("div");
+            subBar.style.cssText = "background: #171e36; border: 1px solid #1e294b; border-radius: 8px; padding: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;";
+            
+            const btnGroup = document.createElement("div");
+            btnGroup.style.display = "flex";
+            btnGroup.style.gap = "8px";
+            
+            const pendingBtn = document.createElement("button");
+            pendingBtn.innerText = `Pending Anomalies (${pendingCount})`;
+            pendingBtn.style.cssText = `padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: all 0.2s; ${
+                activeSubTab === "logs" ? "background: #2563eb; color: #fff;" : "background: transparent; color: #cbd5e1;"
+            }`;
+            pendingBtn.onclick = () => {
+                activeSubTab = "logs";
+                selectedLogItem = null;
+                renderLearningHubScreen();
+            };
+            btnGroup.appendChild(pendingBtn);
+            
+            const approvedBtn = document.createElement("button");
+            approvedBtn.innerText = `Active Rules Board (${patternsCount})`;
+            approvedBtn.style.cssText = `padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; transition: all 0.2s; ${
+                activeSubTab === "patterns" ? "background: #2563eb; color: #fff;" : "background: transparent; color: #cbd5e1;"
+            }`;
+            approvedBtn.onclick = () => {
+                activeSubTab = "patterns";
+                selectedLogItem = null;
+                renderLearningHubScreen();
+            };
+            btnGroup.appendChild(approvedBtn);
+            
+            subBar.appendChild(btnGroup);
+            
+            const refreshBtn = document.createElement("button");
+            refreshBtn.innerText = "🔄 Refresh Records";
+            refreshBtn.style.cssText = "background: transparent; border: 1px solid #1e294b; color: #cbd5e1; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; font-weight: 600;";
+            refreshBtn.onclick = fetchAndRenderLearningHub;
+            subBar.appendChild(refreshBtn);
+            
+            container.appendChild(subBar);
+
+            // 3. CENTRAL WORKSPACE
+            const mainWorkDiv = document.createElement("div");
+            mainWorkDiv.style.cssText = "display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start;";
+            
+            if (activeSubTab === "logs" && selectedLogItem) {
+                mainWorkDiv.style.gridTemplateColumns = "1.1fr 1fr";
+            }
+            
+            const catalogCol = document.createElement("div");
+            catalogCol.style.cssText = "display: flex; flex-direction: column; gap: 10px;";
+            
+            if (activeSubTab === "logs") {
+                const logsToDisplay = learningLogs.filter(l => l.status === "pending" || l.status === "ignored");
+                if (logsToDisplay.length === 0) {
+                    catalogCol.innerHTML = `
+                        <div style="background: #111726; border: 1px solid #1e294b; border-radius: 12px; padding: 35px; text-align: center; color: #64748b;">
+                            <span style="font-size: 32px; display: block; margin-bottom: 15px;">🎉</span>
+                            <strong style="color: #cbd5e1; font-size: 14px; display: block;">Incredible! No unsolved anomalies logged</strong>
+                            <p style="font-size: 11px; color: #64748b; margin-top: 8px; max-width: 320px; margin-left: auto; margin-right: auto;">
+                                Any out-of-scope programmer questions that trigger chatbot fallback replies appear here automatically for registration.
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    logsToDisplay.forEach(log => {
+                        const card = document.createElement("div");
+                        const isSelected = selectedLogItem && selectedLogItem.id === log.id;
+                        card.style.cssText = `background: #111726; border: 1px solid ${
+                            isSelected ? "#3b82f6" : "#1e294b"
+                        }; border-radius: 12px; padding: 15px; cursor: pointer; transition: all 0.2s; position: relative; ${
+                            log.status === 'ignored' ? 'opacity: 0.5' : ''
+                        }`;
+                        
+                        card.onclick = () => selectLogForAiTeaching(log);
+                        
+                        card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: start; gap: 10px; margin-bottom: 5px;">
+                                <span style="font-family: monospace; font-size: 13px; font-weight: bold; color: #fff; line-height: 1.4; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">
+                                    "${log.query}"
+                                </span>
+                                <span style="font-size: 9px; font-weight: bold; text-transform: uppercase; background: ${
+                                    log.category === 'api_error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(59, 130, 246, 0.2)'
+                                }; color: ${
+                                    log.category === 'api_error' ? '#f87171' : '#60a5fa'
+                                }; padding: 2px 6px; border-radius: 4px;">
+                                    ${log.category.replace("_", " ")}
+                                </span>
+                            </div>
+                            <span style="font-size: 10px; color: #64748b; margin-top: 4px; display: block;">
+                                Unresolved: ${new Date(log.timestamp).toLocaleTimeString()} • ${new Date(log.timestamp).toLocaleDateString()}
+                            </span>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; border-top: 1px solid #1e294b; padding-top: 8px;">
+                                <span style="color: #60a5fa; font-size: 11px; font-weight: bold; display: flex; align-items: center; gap: 4px;">
+                                    ✨ Generate Dynamic suggestion ➔
+                                </span>
+                                ${log.status !== 'ignored' ? `
+                                    <button onclick="event.stopPropagation(); ignorePendingLog('${log.id}')" style="background: transparent; border: none; color: #64748b; font-weight: bold; font-size: 10px; cursor: pointer;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#64748b'">
+                                        Ignore Trace
+                                    </button>
+                                ` : `
+                                    <span style="font-size: 10px; color: #f87171; font-weight: bold;">Ignored</span>
+                                `}
+                            </div>
+                        `;
+                        catalogCol.appendChild(card);
+                    });
+                }
+            } else {
+                // RULES BOARD
+                if (activePatterns.length === 0) {
+                    catalogCol.innerHTML = `
+                        <div style="background: #111726; border: 1px solid #1e294b; border-radius: 12px; padding: 35px; text-align: center; color: #64748b;">
+                            <span style="font-size: 32px; display: block; margin-bottom: 15px;">🤖</span>
+                            <strong style="color: #cbd5e1; font-size: 14px; display: block;">No active dynamic learned memory</strong>
+                            <p style="font-size: 11px; color: #64748b; margin-top: 8px; max-width: 320px; margin-left: auto; margin-right: auto;">
+                                Tap into Unresolved Anomalies, trigger AI drafts to build custom answers, then save them as active query receptor layers!
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    const gridBoard = document.createElement("div");
+                    gridBoard.style.cssText = "display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;";
+                    
+                    activePatterns.forEach(pat => {
+                        const card = document.createElement("div");
+                        card.style.cssText = "background: #111726; border: 1px solid #1e294b; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; justify-content: space-between; height: 160px;";
+                        card.innerHTML = `
+                            <div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <span style="font-size: 9px; font-weight: bold; background: rgba(99, 102, 241, 0.2); color: #818cf8; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                                        ${pat.track} • ${pat.level || "Intermediate"}
+                                    </span>
+                                    <span style="font-family: monospace; font-size: 10px; color: #64748b;">
+                                        Trigger: "${pat.pattern}"
+                                    </span>
+                                </div>
+                                <h3 style="font-size: 13px; font-weight: bold; color: #fff; margin: 4px 0;">${pat.title}</h3>
+                                <p style="font-size: 11px; color: #64748b; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                                    ${pat.responseMarkdown.replace(/[#*`]/g, "")}
+                                </p>
+                            </div>
+                            <div style="border-top: 1px solid rgba(255,255,255,0.05); margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 10px; color: #10b981; font-weight: bold; display: flex; align-items: center; gap: 4px;">
+                                    <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+                                    Active Memory Receptor Live
+                                </span>
+                                <button onclick="previewMemoryOutput(\`${encodeURIComponent(pat.responseMarkdown)}\`)" style="background: transparent; border: none; color: #3b82f6; font-size: 11px; font-weight: bold; cursor: pointer;">
+                                    Inspect Output
+                                </button>
+                            </div>
+                        `;
+                        gridBoard.appendChild(card);
+                    });
+                    
+                    catalogCol.appendChild(gridBoard);
+                }
+            }
+            
+            mainWorkDiv.appendChild(catalogCol);
+            
+            // 4. RIGHT COCKPIT SUGGESTION EDITOR PANEL
+            if (activeSubTab === "logs" && selectedLogItem) {
+                const cockpitPanel = document.createElement("div");
+                cockpitPanel.style.cssText = "background: #111726; border: 1px solid #334155; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;";
+                
+                const cHeader = document.createElement("div");
+                cHeader.style.cssText = "background: #1e294b; padding: 12px 15px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;";
+                cHeader.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 14px;">✨</span>
+                        <div>
+                            <span style="font-size: 9px; color: #94a3b8; text-transform: uppercase; font-weight: bold; display: block; line-height: 1;">Learning Lab Cockpit</span>
+                            <strong style="font-size: 11px; color: #fff; margin-top: 2px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
+                                Query: "${selectedLogItem.query}"
+                            </strong>
+                        </div>
+                    </div>
+                `;
+                const closeBtn = document.createElement("button");
+                closeBtn.innerHTML = "✖";
+                closeBtn.style.cssText = "background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 12px;";
+                closeBtn.onclick = () => {
+                    selectedLogItem = null;
+                    renderLearningHubScreen();
+                };
+                cHeader.appendChild(closeBtn);
+                cockpitPanel.appendChild(cHeader);
+                
+                const cBody = document.createElement("div");
+                cBody.style.padding = "15px";
+                
+                if (suggestionLoading) {
+                    cBody.innerHTML = `
+                        <div style="text-align: center; padding: 40px 10px;">
+                            <div class="spinner" style="border: 3px solid #1e294b; border-top-color: #3b82f6; border-radius: 50%; width: 28px; height: 28px; display: inline-block; animation: spin 1s linear infinite; margin-bottom: 12px;"></div>
+                            <strong style="color: #cbd5e1; font-size: 13px; display: block;">Drafting educational guideline...</strong>
+                            <p style="font-size: 10px; color: #64748b; line-height: 1.4; margin-top: 5px; max-width: 250px; margin-left: auto; margin-right: auto;">
+                                Running LLM prompt model. Formulating breakdown explanations, examples, and working code blocks.
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    const sugPattern = selectedLogItem.suggestion ? selectedLogItem.suggestion.pattern : selectedLogItem.query;
+                    const sugTitle = selectedLogItem.suggestion ? selectedLogItem.suggestion.title : selectedLogItem.query + " Guide";
+                    const sugTrack = selectedLogItem.suggestion ? selectedLogItem.suggestion.track : "General";
+                    const sugLevel = selectedLogItem.suggestion ? selectedLogItem.suggestion.level : "Intermediate";
+                    const sugMarkdown = selectedLogItem.suggestion ? selectedLogItem.suggestion.responseMarkdown : "";
+                    
+                    cBody.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <label style="font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Trigger Keyword</label>
+                                    <input type="text" id="editPatternInput" value="${sugPattern}" style="width: 100%; padding: 8px; border: 1px solid #1e294b; border-radius: 6px; background: #070a13; color: #fff; font-size: 12px; font-family: monospace;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Topic Title</label>
+                                    <input type="text" id="editTitleInput" value="${sugTitle}" style="width: 100%; padding: 8px; border: 1px solid #1e294b; border-radius: 6px; background: #070a13; color: #fff; font-size: 12px;">
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <label style="font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Track/Language</label>
+                                    <input type="text" id="editTrackInput" value="${sugTrack}" style="width: 100%; padding: 8px; border: 1px solid #1e294b; border-radius: 6px; background: #070a13; color: #fff; font-size: 12px;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Complexity level</label>
+                                    <select id="editLevelSelect" style="width: 100%; padding: 8px; border: 1px solid #1e294b; border-radius: 6px; background: #070a13; color: #fff; font-size: 12px; height: 33px;">
+                                        <option value="Basic" ${sugLevel === 'Basic' ? 'selected' : ''}>Basic</option>
+                                        <option value="Intermediate" ${sugLevel === 'Intermediate' || sugLevel === 'General' ? 'selected' : ''}>Intermediate</option>
+                                        <option value="System-Level" ${sugLevel === 'System-Level' ? 'selected' : ''}>System-Level</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label style="font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase;">Response Markdown Layout</label>
+                                    <button onclick="compileAIPatternSuggestion('${selectedLogItem.id}')" style="background: transparent; border: none; color: #3b82f6; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 2px;">
+                                        ✨ Draft via AI
+                                    </button>
+                                </div>
+                                <textarea id="editResponseMarkdownArea" rows="7" style="width: 100%; padding: 10px; border: 1px solid #1e294b; border-radius: 6px; background: #070a13; color: #cbd5e1; font-family: monospace; font-size: 11px; resize: vertical; line-height: 1.4;">${sugMarkdown}</textarea>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #1e294b; padding-top: 12px; margin-top: 4px;">
+                                <button onclick="selectedLogItem = null; renderLearningHubScreen();" style="padding: 8px 14px; background: transparent; border: 1px solid #1e294b; border-radius: 6px; color: #94a3b8; font-size: 11px; font-weight: bold; cursor: pointer;">
+                                    Cancel
+                                </button>
+                                <button onclick="approveDynamicReceptor('${selectedLogItem.id}')" style="padding: 8px 14px; background: #10b981; border: none; border-radius: 6px; color: #fff; font-size: 11px; font-weight: bold; cursor: pointer;">
+                                    🔒 Approve & Teach Bot
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                cockpitPanel.appendChild(cBody);
+                mainWorkDiv.appendChild(cockpitPanel);
+            }
+            
+            container.appendChild(mainWorkDiv);
+        }
+
+        function selectLogForAiTeaching(log) {
+            selectedLogItem = log;
+            renderLearningHubScreen();
+            
+            if (!log.suggestion) {
+                compileAIPatternSuggestion(log.id);
+            }
+        }
+
+        function compileAIPatternSuggestion(logId) {
+            suggestionLoading = true;
+            renderLearningHubScreen();
+            
+            fetch('/api/learning/suggest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ logId: logId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                suggestionLoading = false;
+                if (data.success && data.suggestion) {
+                    const idx = learningLogs.findIndex(l => l.id === logId);
+                    if (idx !== -1) {
+                        learningLogs[idx].suggestion = data.suggestion;
+                        if (selectedLogItem && selectedLogItem.id === logId) {
+                            selectedLogItem.suggestion = data.suggestion;
+                        }
+                    }
+                    renderLearningHubScreen();
+                } else {
+                    alert("Failed to draft suggestion: " + (data.error || "Unknown error"));
+                    renderLearningHubScreen();
+                }
+            })
+            .catch(err => {
+                suggestionLoading = false;
+                alert("Core error drafting suggestion: " + err);
+                renderLearningHubScreen();
+            });
+        }
+
+        function approveDynamicReceptor(logId) {
+            const pattern = document.getElementById("editPatternInput").value.trim();
+            const title = document.getElementById("editTitleInput").value.trim();
+            const track = document.getElementById("editTrackInput").value.trim();
+            const level = document.getElementById("editLevelSelect").value;
+            const markdown = document.getElementById("editResponseMarkdownArea").value.trim();
+            
+            if (!pattern || !title || !markdown) {
+                alert("Pattern, Title, and responseMarkdown fields cannot be empty!");
+                return;
+            }
+            
+            const customPattern = {
+                pattern: pattern,
+                title: title,
+                track: track,
+                level: level,
+                responseMarkdown: markdown
+            };
+            
+            fetch('/api/learning/teach', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ logId: logId, customPattern: customPattern })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Successfully taught bot to answer query: "${pattern}"!`);
+                    selectedLogItem = null;
+                    fetchAndRenderLearningHub();
+                } else {
+                    alert("Fail saving pattern: " + (data.error || "Unknown"));
+                }
+            })
+            .catch(err => {
+                alert("Network error teaching bot: " + err);
+            });
+        }
+
+        function ignorePendingLog(logId) {
+            fetch('/api/learning/ignore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ logId: logId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const idx = learningLogs.findIndex(l => l.id === logId);
+                    if (idx !== -1) {
+                        learningLogs[idx].status = 'ignored';
+                    }
+                    if (selectedLogItem && selectedLogItem.id === logId) {
+                        selectedLogItem = null;
+                    }
+                    renderLearningHubScreen();
+                } else {
+                    alert("Ignore action failed: " + (data.error || "Unknown"));
+                }
+            })
+            .catch(err => alert("Ignore request error: " + err));
+        }
+
+        function previewMemoryOutput(encodedMarkdown) {
+            const rawMarkdown = decodeURIComponent(encodedMarkdown);
+            const overlay = document.createElement("div");
+            overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(13, 18, 36, 0.9); display: flex; justify-content: center; align-items: center; z-index: 10000; padding: 20px;";
+            
+            const box = document.createElement("div");
+            box.style.cssText = "background: #0f172a; border: 1px solid #1e294b; border-radius: 12px; width: 100%; max-width: 600px; max-height: 80%; overflow-y: auto; display: flex; flex-direction: column;";
+            
+            const header = document.createElement("div");
+            header.style.cssText = "padding: 15px 20px; background: #171e36; border-bottom: 1px solid #1e294b; display: flex; justify-content: space-between; align-items: center;";
+            header.innerHTML = `<strong style="font-size: 13px; color: #fff;">Inspect Active Markdown Receptor Output</strong>`;
+            
+            const closeBtn = document.createElement("button");
+            closeBtn.innerText = "Close";
+            closeBtn.style.cssText = "padding: 5px 10px; background: #ef4444; color: #fff; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;";
+            closeBtn.onclick = () => overlay.remove();
+            
+            header.appendChild(closeBtn);
+            box.appendChild(header);
+            
+            const content = document.createElement("div");
+            content.style.cssText = "padding: 20px; color: #cbd5e1; font-size: 13px; line-height: 1.6;";
+            
+            let cleanMarkdown = rawMarkdown.replace(/\\n/g, '\n');
+            content.innerHTML = `<div class="bot-msg">${marked.parse(cleanMarkdown)}</div>`;
+            box.appendChild(content);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+        }
+    </script>
+</body>
+</html>

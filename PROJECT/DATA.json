@@ -1,0 +1,138 @@
+{
+  "intents": [
+    {
+      "tag": "greeting",
+      "patterns": [
+        "hi",
+        "hello",
+        "hey",
+        "greetings",
+        "good morning"
+      ],
+      "responses": [
+        "Hello! Welcome to the Programming Agent workspace. How can I help you program today?",
+        "Hi there! Ready to write, debug, or learn about some awesome code?",
+        "Hey! Welcome back. Ask me any coding or curriculum questions!"
+      ]
+    },
+    {
+      "tag": "help",
+      "patterns": [
+        "help",
+        "what can you do",
+        "features",
+        "how to use this"
+      ],
+      "responses": [
+        "I am an adaptive programming chatbot tutor! You can ask me specific questions about Python, Java, or C. If I don't know the answer, you can teach me in the Adaptive Learning Lab!"
+      ]
+    },
+    {
+      "tag": "goodbye",
+      "patterns": [
+        "bye",
+        "goodbye",
+        "exit",
+        "quit"
+      ],
+      "responses": [
+        "Goodbye! Happy coding!",
+        "See you next time! Keep building great things.",
+        "Bye! Don't hesitate to resume our session later."
+      ]
+    },
+    {
+      "tag": "thanks",
+      "patterns": [
+        "thanks",
+        "thank you",
+        "awesome",
+        "perfect"
+      ],
+      "responses": [
+        "You're very welcome! Let me know if you need anything else.",
+        "Glad I could help! Happy coding!",
+        "My pleasure! Let's build something beautiful."
+      ]
+    }
+  ],
+  "categories": {
+    "Python": {
+      "history": "Python was created by Guido van Rossum in the late 1980s and first released in 1991. It was designed to emphasize code readability with its notable use of significant whitespace.",
+      "Basic": {
+        "topics": [
+          {
+            "title": "python syntax and indentation",
+            "intro": "Python uses whitespace indentation to define code blocks rather than curly braces.",
+            "explanation": "Curly braces are omitted in favor of consistent indentation (typically 4 spaces). Incorrect indentation will raise an IndentationError on startup.",
+            "code_examples": [
+              "def greet(name):\n    if name:\n        print('Hello, ' + name)\n    else:\n        print('Hello, World!')\n\ngreet('Developer')"
+            ]
+          },
+          {
+            "title": "list and sequence mastery",
+            "intro": "Lists are mutable ordered collections of items in Python.",
+            "explanation": "Lists can contain mixed data types. You can modify them using index assignments, slice notation, or list methods such as append and extend.",
+            "code_examples": [
+              "fruits = ['apple', 'banana', 'coconut']\nfruits.append('date')\nprint(fruits[1:3]) # ['banana', 'coconut']"
+            ]
+          },
+          {
+            "title": "dictionaries and mapping",
+            "intro": "Dictionaries store key-value associations in Python.",
+            "explanation": "Keys in a dictionary must be immutable hashable types (like strings or integers), while values can be any valid Python object. They are optimized for lightning-fast lockups.",
+            "code_examples": [
+              "users = {\n    'admin': {'id': 1, 'role': 'superuser'},\n    'dev': {'id': 2, 'role': 'writer'}\n}\nprint(users['admin']['role'])"
+            ]
+          }
+        ]
+      }
+    },
+    "Java": {
+      "history": "Java was developed by James Gosling at Sun Microsystems and released in 1995. Its landmark promise was 'Write Once, Run Anywhere' (WORA), enabled by running compiled bytecode on the Java Virtual Machine (JVM).",
+      "Basic": {
+        "topics": [
+          {
+            "title": "objects and classes",
+            "intro": "Java is a purely object-oriented language where classes govern all code execution.",
+            "explanation": "Classes model real-world concepts containing properties (fields) and capabilities (methods). Objects are instances of classes allocated dynamically on the JVM heap.",
+            "code_examples": [
+              "public class Robot {\n    private String name;\n    public Robot(String name) {\n        this.name = name;\n    }\n    public void greet() {\n        System.out.println(\"Beep boop, my name is \" + name);\n    }\n}"
+            ]
+          },
+          {
+            "title": "conditional logic",
+            "intro": "Java implements branching execution pathways with if/else-if/else structures.",
+            "explanation": "Java conditional tests require rigorous boolean checks. Arithmetic assertions or null checks are written explicitly within parenthesized expressions.",
+            "code_examples": [
+              "int temperature = 24;\nif (temperature > 30) {\n    System.out.println(\"Hot\");\n} else if (temperature < 15) {\n    System.out.println(\"Cold\");\n} else {\n    System.out.println(\"Serene\");\n}"
+            ]
+          }
+        ]
+      }
+    },
+    "C": {
+      "history": "C was crafted by Dennis Ritchie at Bell Labs between 1972 and 1973 to rewrite the Unix operating system. It remains the absolute gold standard for system-level speed, hardware access, and compiled control.",
+      "Basic": {
+        "topics": [
+          {
+            "title": "memory management",
+            "intro": "C has no automated garbage collection. Programmers manage heap allocations manually.",
+            "explanation": "Use stdlib.h utility functions like malloc() or calloc() to allocate dynamic variables, and free() to reclaim that space to prevent persistent memory leaks.",
+            "code_examples": [
+              "#include <stdio.h>\n#include <stdlib.h>\n\nint main() {\n    int *numberPtr = (int*) malloc(sizeof(int));\n    if (numberPtr != NULL) {\n        *numberPtr = 99;\n        printf(\"Dynamic value is %d\\n\", *numberPtr);\n        free(numberPtr);\n    }\n    return 0;\n}"
+            ]
+          },
+          {
+            "title": "arrays and collections",
+            "intro": "Arrays are contiguously allocated sequences of a fixed, designated type.",
+            "explanation": "Array indices are 0-based. C does NOT perform dynamic boundaries checking on allocations, so referencing elements outside the declared limit triggers undefined behaviors or segmentation faults.",
+            "code_examples": [
+              "int ratings[5] = {90, 85, 95, 88, 92};\nprintf(\"First rating: %d\\n\", ratings[0]);"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
