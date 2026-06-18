@@ -35,6 +35,70 @@ async function buildAdaptiveInstruction(baseInstruction: string): Promise<string
   return instruction;
 }
 
+// Helper to perform robust, retryable, and model-fallback content generation to gracefully handle 503 Spike Capacity/High Demand errors
+async function generateContentWithFallback(
+  ai: GoogleGenAI,
+  params: {
+    contents: any;
+    config?: any;
+  }
+): Promise<any> {
+  const primaryModel = "gemini-3.5-flash";
+  const fallbackModel = "gemini-3.1-flash-lite";
+  
+  let lastError: any = null;
+
+  // Attempt up to 2 times with primary model using exponential backoff
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      console.log(`[Gemini API] Primary model attempt ${attempt} starting for: ${primaryModel}`);
+      const response = await ai.models.generateContent({
+        model: primaryModel,
+        contents: params.contents,
+        config: params.config,
+      });
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      const isTransient = 
+        error?.status === "UNAVAILABLE" || 
+        error?.code === 503 || 
+        (error?.message && (
+          error.message.includes("high demand") || 
+          error.message.includes("temporary") || 
+          error.message.includes("RESOURCE_EXHAUSTED") ||
+          error.message.includes("503") ||
+          error.message.includes("UNAVAILABLE")
+        ));
+      
+      if (!isTransient) {
+        throw error;
+      }
+
+      console.warn(`[Gemini API] Primary model attempt ${attempt} failed with transient demand/congestion error:`, error.message || error);
+      if (attempt < 2) {
+        const delay = attempt * 1200;
+        console.log(`[Gemini API] Waiting ${delay}ms before retrying primary model...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // If primary model options failed, fall back to gemini-3.1-flash-lite
+  console.log(`[Gemini API] Primary model attempts exhausted. Falling back to lightweight resilient model: ${fallbackModel}`);
+  try {
+    const response = await ai.models.generateContent({
+      model: fallbackModel,
+      contents: params.contents,
+      config: params.config,
+    });
+    return response;
+  } catch (fallbackError: any) {
+    console.error(`[Gemini API] Fallback model ${fallbackModel} also failed:`, fallbackError.message || fallbackError);
+    throw fallbackError || lastError;
+  }
+}
+
 // In-memory sessions
 interface SessionUser {
   email: string;
@@ -58,6 +122,59 @@ function parseCookies(cookieString?: string): Record<string, string> {
   return cookies;
 }
 
+function getCleanGeminiApiKey(): { key: string; error?: string } {
+  let activeApiKey = (process.env.GEMINI_API_KEY || "").trim();
+  
+  if (!activeApiKey) {
+    console.error("[Diagnostic] GEMINI_API_KEY is not defined or is empty.");
+    return {
+      key: "",
+      error: "GEMINI_API_KEY is not configured in environment variables. Please check Settings/Secrets."
+    };
+  }
+
+  // Handle wrapped quotes or double quotes
+  if (activeApiKey.startsWith('"') && activeApiKey.endsWith('"')) {
+    activeApiKey = activeApiKey.slice(1, -1).trim();
+  }
+  if (activeApiKey.startsWith("'") && activeApiKey.endsWith("'")) {
+    activeApiKey = activeApiKey.slice(1, -1).trim();
+  }
+
+  // Securely log basic signature info (not revealing the key!) for developer logs
+  console.log(`[Diagnostic] Loaded GEMINI_API_KEY - length: ${activeApiKey.length}, prefix: "${activeApiKey.substring(0, 6)}", suffix: "${activeApiKey.substring(Math.max(0, activeApiKey.length - 4))}"`);
+
+  if (activeApiKey.includes("apps.googleusercontent.com")) {
+    return {
+      key: "",
+      error: "GEMINI_API_KEY is incorrectly configured with a Google OAuth Client ID (ending in .apps.googleusercontent.com) instead of a Gemini API key. Please check your credentials and make sure GEMINI_API_KEY is set to a valid Gemini API Key (usually starting with 'AIzaSy') from Google AI Studio."
+    };
+  }
+
+  if (activeApiKey.startsWith("ya29.")) {
+    return {
+      key: "",
+      error: "GEMINI_API_KEY is incorrectly configured with a Google OAuth Access Token (starting with 'ya29.') instead of a Gemini API key. Please check your credentials and make sure GEMINI_API_KEY is set to a valid Gemini API Key (usually starting with 'AIzaSy') from Google AI Studio."
+    };
+  }
+
+  if (activeApiKey.startsWith("GOCSPX-")) {
+    return {
+      key: "",
+      error: "GEMINI_API_KEY is incorrectly configured with a Google OAuth Client Secret (starting with 'GOCSPX-') instead of a Gemini API key. Please configure the Client Secret as GOOGLE_CLIENT_SECRET, and set GEMINI_API_KEY to a valid Gemini API Key (usually starting with 'AIzaSy') from Google AI Studio."
+    };
+  }
+
+  if (!activeApiKey.startsWith("AIzaSy")) {
+    return {
+      key: "",
+      error: `GEMINI_API_KEY appears to have an incorrect prefix ("${activeApiKey.substring(0, 6)}..."). A valid Gemini API Key from Google AI Studio always starts with "AIzaSy". Please check your Render configuration / Secrets settings and make sure GEMINI_API_KEY is set to a valid Gemini API Key.`
+    };
+  }
+
+  return { key: activeApiKey };
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -72,7 +189,7 @@ async function startServer() {
   app.get("/api/auth/url", (req, res) => {
     try {
       const redirectUri = process.env.APP_URL
-        ? `${process.env.APP_URL.replace(/\/$/, "")}/auth/callback`
+        ? `${process.env.APP_URL.trim().replace(/\/$/, "")}/auth/callback`
         : `${req.protocol}://${req.get("host")}/auth/callback`;
 
       const params = new URLSearchParams({
@@ -99,7 +216,7 @@ async function startServer() {
 
     try {
       const redirectUri = process.env.APP_URL
-        ? `${process.env.APP_URL.replace(/\/$/, "")}/auth/callback`
+        ? `${process.env.APP_URL.trim().replace(/\/$/, "")}/auth/callback`
         : `${req.protocol}://${req.get("host")}/auth/callback`;
 
       // Exchange authorization code for token
@@ -229,10 +346,10 @@ async function startServer() {
       const lastUserMessage = [...contents].reverse().find(msg => msg.role === "user");
       lastQueryText = lastUserMessage?.parts?.[0]?.text || "";
 
-      const activeApiKey = process.env.GEMINI_API_KEY || "";
-      if (!activeApiKey) {
-        return res.status(500).json({ 
-          error: "GEMINI_API_KEY is not configured in environment variables. Please check Settings/Secrets." 
+      const { key: activeApiKey, error: keyError } = getCleanGeminiApiKey();
+      if (keyError || !activeApiKey) {
+        return res.status(keyError && keyError.includes("incorrectly configured") ? 400 : 500).json({ 
+          error: keyError || "GEMINI_API_KEY is not configured in environment variables. Please check Settings/Secrets." 
         });
       }
 
@@ -249,9 +366,8 @@ async function startServer() {
       // Inject learned patterns dynamically into system instruction
       const enrichedSystemInstruction = await buildAdaptiveInstruction(systemInstruction);
 
-      // Generate content using gemini-3.5-flash as recommended
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+      // Generate content using gemini-3.5-flash with automatic retry and lightweight model fallback mechanisms for 530/503 spikes.
+      const response = await generateContentWithFallback(ai, {
         contents: contents,
         config: {
           systemInstruction: enrichedSystemInstruction,
@@ -320,10 +436,10 @@ async function startServer() {
         return res.status(400).json({ error: "logId is required to generate a suggestion." });
       }
 
-      const activeApiKey = process.env.GEMINI_API_KEY || "";
-      if (!activeApiKey) {
-        return res.status(500).json({ 
-          error: "GEMINI_API_KEY is not configured. Cannot generate suggestion." 
+      const { key: activeApiKey, error: keyError } = getCleanGeminiApiKey();
+      if (keyError || !activeApiKey) {
+        return res.status(keyError && keyError.includes("incorrectly configured") ? 400 : 500).json({ 
+          error: keyError || "GEMINI_API_KEY is not configured. Cannot generate suggestion." 
         });
       }
 
