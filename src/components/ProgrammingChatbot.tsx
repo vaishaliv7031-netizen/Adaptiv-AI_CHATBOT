@@ -365,7 +365,7 @@ export default function ProgrammingChatbot() {
   };
 
   // Parsing helper to isolate text descriptions from blocks of code
-  const renderMessageContent = (text: string) => {
+  const renderMessageContent = (text: string, isUser: boolean = false) => {
     const sections = text.split("```");
     return sections.map((section, idx) => {
       // Odd indices are the raw content inside code tags
@@ -408,7 +408,7 @@ export default function ProgrammingChatbot() {
       } else {
         // Plain text content
         return (
-          <p key={idx} className="whitespace-pre-wrap leading-relaxed text-slate-800 text-[14px]">
+          <p key={idx} className={`whitespace-pre-wrap break-words [word-break:break-word] leading-relaxed text-[14px] ${isUser ? "text-slate-100" : "text-slate-800"}`}>
             {section}
           </p>
         );
@@ -422,20 +422,20 @@ export default function ProgrammingChatbot() {
   );
 
   return (
-    <div className="flex h-screen bg-slate-100 overflow-hidden text-slate-800 font-sans relative">
+    <div className="flex h-[100dvh] w-full bg-slate-100 overflow-hidden text-slate-800 font-sans relative">
       
       {/* Backdrop overlay for mobile sidebar */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 md:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 lg:hidden transition-opacity duration-300"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
       
       {/* LEFT SIDEBAR: Session Control and Navigation */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-80 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 flex-shrink-0 transform ${
-        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-      } md:translate-x-0 transition-transform duration-300 ease-in-out`}>
+      <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-72 sm:w-80 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 flex-shrink-0 transform ${
+        isSidebarOpen ? "translate-x-0 visible" : "-translate-x-full invisible lg:visible"
+      } lg:translate-x-0 transition-transform duration-300 ease-in-out`}>
         
         {/* Workspace Brand Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between">
@@ -450,7 +450,7 @@ export default function ProgrammingChatbot() {
           </div>
           <button
             onClick={() => setIsSidebarOpen(false)}
-            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg md:hidden transition-colors"
+            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg lg:hidden transition-colors"
             title="Close Sidebar"
           >
             <X className="w-5 h-5" />
@@ -482,7 +482,7 @@ export default function ProgrammingChatbot() {
               placeholder="Search chat history..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-800/60 hover:bg-slate-800 focus:bg-slate-800 border border-slate-700/50 focus:border-slate-600 rounded-lg text-xs placeholder-slate-500 text-slate-200 focus:outline-none transition-all"
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-800/60 hover:bg-slate-800 focus:bg-slate-800 border border-slate-700/50 focus:border-slate-600 rounded-lg text-base lg:text-xs placeholder-slate-500 text-slate-200 focus:outline-none transition-all"
             />
           </div>
         </div>
@@ -523,7 +523,7 @@ export default function ProgrammingChatbot() {
                       }}
                       autoFocus
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 bg-slate-700 text-white text-xs px-1 py-0.5 rounded focus:outline-none"
+                      className="flex-1 bg-slate-700 text-white text-base lg:text-xs px-1 py-0.5 rounded focus:outline-none"
                     />
                   ) : (
                     <span className="flex-1 text-xs font-medium truncate pr-8 leading-normal">
@@ -588,7 +588,7 @@ export default function ProgrammingChatbot() {
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 -ml-1 text-slate-600 hover:text-slate-800 focus:outline-none md:hidden rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+              className="p-2 -ml-1 text-slate-600 hover:text-slate-800 focus:outline-none lg:hidden rounded-lg hover:bg-slate-100 transition-colors shrink-0"
               title="Toggle Menu"
             >
               <Menu className="w-5 h-5" />
@@ -657,7 +657,7 @@ export default function ProgrammingChatbot() {
           <div className="flex-1 flex flex-col justify-between overflow-hidden">
               
               {/* Messages viewport */}
-              <div className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 scrollbar-thin scrollbar-thumb-slate-300">
+              <div className="flex-grow overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-4 sm:space-y-6 scrollbar-thin scrollbar-thumb-slate-300">
                 
                 {/* Onboarding welcome tiles if there are standard template requirements */}
                 {activeSession && activeSession.messages.length <= 1 && (
@@ -739,14 +739,14 @@ export default function ProgrammingChatbot() {
                           )}
 
                           {/* Message bubble */}
-                          <div className={`max-w-[88%] sm:max-w-[85%] rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3.5 shadow-xs border relative group/bubble ${
+                          <div className={`max-w-[88%] sm:max-w-[85%] rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3.5 shadow-xs border relative group/bubble min-w-0 break-words [word-break:break-word] ${
                             isUser
                               ? "bg-slate-800 border-slate-700 text-slate-100 rounded-tr-xs"
                               : "bg-white border-slate-200 text-slate-800 rounded-tl-xs"
                           }`}
                         >
                             <div className="space-y-2">
-                              {renderMessageContent(msg.text)}
+                              {renderMessageContent(msg.text, isUser)}
                             </div>
                             
                             <div className="flex items-center justify-between gap-1.5 mt-2.5 text-[10px] text-slate-400 border-t border-slate-100/10 pt-1.5">
@@ -824,7 +824,7 @@ export default function ProgrammingChatbot() {
                           handleSendMessage();
                         }
                       }}
-                      className="flex-1 bg-transparent border-0 px-3 py-2 text-sm focus:outline-none placeholder-slate-400 text-slate-800 resize-none min-h-[36px]"
+                      className="flex-1 bg-transparent border-0 px-3 py-2 text-base lg:text-sm focus:outline-none placeholder-slate-400 text-slate-800 resize-none min-h-[36px]"
                     />
                     
                     <button
