@@ -165,11 +165,16 @@ function getCleanGeminiApiKey(): { key: string; error?: string } {
     };
   }
 
-  if (!activeApiKey.startsWith("AIzaSy")) {
-    return {
-      key: "",
-      error: `GEMINI_API_KEY appears to have an incorrect prefix ("${activeApiKey.substring(0, 6)}..."). A valid Gemini API Key from Google AI Studio always starts with "AIzaSy". Please check your Render configuration / Secrets settings and make sure GEMINI_API_KEY is set to a valid Gemini API Key.`
-    };
+  // Support standard Google AI Studio "AIzaSy" keys, alternative/enterprise headers (like "AQ.Ab8..."), or any valid token format of reasonable length
+  if (!activeApiKey.startsWith("AIzaSy") && !activeApiKey.startsWith("AQ.")) {
+    if (activeApiKey.length < 15) {
+      return {
+        key: "",
+        error: `GEMINI_API_KEY appears to have an incorrect prefix ("${activeApiKey.substring(0, 6)}...") and is too short to be a valid API Key. A valid Gemini API Key from Google AI Studio usually starts with "AIzaSy" or is a valid service API Key format.`
+      };
+    } else {
+      console.warn(`[Diagnostic] GEMINI_API_KEY prefix "${activeApiKey.substring(0, 6)}..." is non-standard but of correct length (${activeApiKey.length}). Allowing backup bypass.`);
+    }
   }
 
   return { key: activeApiKey };
